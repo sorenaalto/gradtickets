@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <script src="http://code.jquery.com/jquery-2.2.4.js"></script>
+
+        <!-- Latest compiled and minified CSS -->
+        <link rel="stylesheet" 
+            href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" 
+            integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" 
+            crossorigin="anonymous">
+
+        <!-- Optional theme -->
+        <link rel="stylesheet" 
+            href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap-theme.min.css" 
+            integrity="sha384-rHyoN1iRsVXV4nD0JutlnGaslCJuC7uwjduW9SVrLvRYooPp2bWYgmgJQIXwl/Sp" 
+            crossorigin="anonymous">
+
+        <!-- Latest compiled and minified JavaScript -->
+        <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" 
+            integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" 
+            crossorigin="anonymous">
+        </script>
+        
+        <style>
+            div.scan-ok { border : solid black 1px ; background: green ; }
+            div.scan-err { border : solid black 3px ; background: red ; }
+            div#scanOK { height: 100px;}
+            div#dut-logo { height: 100px;}
+            div#title-text { height: 100px; font-size: 24pt;}
+            #scan-img { height: 100px ; width 120px ;}
+            .xlabel { font-weight: bold; font-size: 16pt; height: 25px;}
+            #stnum { font-family: fixed-width; font-weight: bold; font-size: 16pt}
+            #surname { font-size: 20pt; font-weight: bold; }
+            
+            .required label::after, h4.required::after {
+            	content:'*';
+	            padding-left:10px;
+            }
+            .required input::after {
+	            content:'';
+            }
+            
+        </style>
+        
+        <script src="gradinfo.json"></script>
+        <script src="js/gradutil.js"></script>
+        <script>
+            gradlist = new gradutils(gradInfo);
+            // get all sessions
+            var ssnlist = [];
+            var audio = {};
+            var scans_seen = {};
+
+            function scanOK(isok) {
+                if(isok == "OK") {
+                    $('#scan-img').attr('src','media/check.png');
+                    audio['OK'].play();
+                } else if(isok == "WARN") {
+                    $('#scan-img').attr('src','media/warn.png');
+                    audio['ERR'].play();
+                } else {
+                    $('#scan-img').attr('src','media/redx.png');
+                    audio['ERR'].play();
+                }
+/*
+                if(isok) {
+                    $('#scan-img').attr('src','check.png');
+                    audio['OK'].play();
+                } else {
+                    $('#scan-img').attr('src','redx.png');
+                    audio['ERR'].play();
+                }
+*/
+            }
+
+            $(document).ready(function(){
+                var ssnlist = gradlist.sessionList();
+                
+                for(var i in ssnlist) {
+                    ssn = ssnlist[i];
+                    console.log(ssn);
+                    var ssndtime = gradlist.sessionDateAndTime(ssn);
+                    var sdate = ssndtime.date;
+                    var options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+                    var optdate = sdate.toLocaleDateString("en-UK",options);
+//                    var ssntime = ssn.slice(9,14);
+                    var ssntime= ssndtime.time ;
+                    $('#ssnlist').append($("<option>",
+                                    {
+                                        value:ssn,
+                                        text:optdate+" "+ssntime
+                                    }));
+                } 
+                console.log("ssnlist="+ssnlist);
+               
+                $('#snum').change(function(e){
+                    var scan_in = $('#snum').val();
+                    var t = scan_in.split('_');
+//                    var snum = t[0] ;
+//                    var guest = t.length>1 ? t[1] : null;
+                    var sg = gradlist.parseScan(scan_in);
+                    var snum = sg.snum;
+                    var guest = sg.guest;
+                    console.log("snum.change -> "+snum+"_"+guest);
+                    
+                    var sinfo = gradlist.findStudent(snum);
+                    if (sinfo != null) {
+                        $('#display-err').html(JSON.stringify(sinfo));  
+                        $('#stnum').html(sinfo[0]);
+                        $('#names').html(sinfo[1]+", "+sinfo[2]);
+                        $('#qualification').html(sinfo[3]+": "+sinfo[4]);
+                        var sdtime = gradlist.sessionDateAndTime(sinfo[5]);
+                        $('#session').html(sdtime.date+", "+sdtime.time);
+                        guest ? $('#guest').html('Guest_'+guest) : $('#guest').html("");
+                        if(gradlist.studentGuestSeen(snum,guest)) {
+                            scanOK("WARN");    
+                            $('#display-err').html("This student/guest already scanned");  
+                        } else {
+                            scanOK("OK");
+                            gradlist.seeStudent(snum,guest);
+                        }
+                    } else {
+                        $('#display-err').html("Student number <tt>"+snum+"</tt> was not found");  
+                        $('#stnum').html("???");
+                        $('#names').html("???");
+                        $('#qualification').html("???");
+                        $('#session').html("???");
+                        scanOK("ERR");
+                    }
+                    // don't submit the form
+                    $('#snum').val("");
+                    return false;
+                });
+                
+                audio["ERR"] = new Audio();
+                audio["ERR"].src = "busyfone.wav";
+                audio["OK"] = new Audio();
+                audio["OK"].src = "boing2.wav";
+            });
+            
+            function findStudent(sn) {
+                for(var ssn in gradInfo) {
+                    if (sn in gradInfo[ssn]) {
+                        return gradInfo[ssn][sn];
+                    }
+                }
+                return null ;
+            }
+            
+            $('#searchform').submit(function(){
+                console.log("submit...");
+                return false;
+            });
+        </script>
+    </head>
+    <body class='bg-light'>
+        <div class='container'>
+            <main role='main'>
+            <div class="row">
+                <div id='dut-logo' class="col-sm-3">
+                    <img height="60" src="http://www.dut.ac.za/wp-content/themes/stylish-v1.2.4-child/dut-logo.jpg"/>
+                </div>
+                <div id='title-text' class="col-sm-3">
+                    2018 Autumn Graduation
+                </div>
+                <div id="scanOK" class="col-sm-3">
+                    <img src='media/qmark.png' id='scan-img' >
+                </div>
+            </div>
+            <br/>
+            <form id='searchform' onsubmit="return false;"><!-- FIX THIS... -->
+                <div class="form-group row required">
+                    <label for='session' class='col-sm-3'>Graduation session:</label>
+                    <select name='session' id='ssnlist' class='col-sm-3'>
+                        <option>Select a session...</option>
+                    </select>           
+                </div>
+                <div class="form-group row required">
+                    <label for='snum' class='col-sm-3'>Student number:</label>
+                    <input type=text name='snum' id='snum' class='col-sm-3 required'>
+                </div>
+            </form>
+            <br/>
+            <div id='display-err'></div>
+            <div id='display' class='row'>
+                <div class='col-sm-3 badge'>Student Number:</div>
+                <div class='col-sm-3' id='stnum'></div>
+            </div>
+            <br>
+            <div id='display' class='row'>
+                <div class='col-sm-3 badge'>Name:</div>
+                <div class='col-sm-3' id='names'></div>
+            </div>
+            <br>
+            <div id='display' class='row'>
+                <div class='col-sm-3 badge'>Qualification:</div>
+                <div class='col-sm-3' id='qualification'></div>
+            </div>
+            <br>
+            <div id='display' class='row'>
+                <div class='col-sm-3 badge'>Session:</div>
+                <div class='col-sm-3' id='session'></div>
+            </div>
+            <div id='display' class='row'>
+                <div class='col-sm-3'></div>
+                <div class='col-sm-3' id='guest'></div>
+            </div>
+            </main>
+        </div>
+    </body>
+</html>
